@@ -1,7 +1,8 @@
 """
-app/modules/usuarios/services/usuario_service.py - CORREGIDO
-Servicios del Módulo de Usuarios - FINAL
+app/modules/usuarios/services/usuario_service.py - CORREGIDO FINAL
+Servicios del Módulo de Usuarios - SIN DUPLICADOS
 """
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from datetime import datetime
 from typing import List, Optional, Dict, Any
@@ -323,13 +324,47 @@ class UsuarioService(BaseService):
 
 
 class RolService:
-    """Servicio de gestión de roles (RF-02, RF-03, RF-04) - CORREGIDO"""
+    """Servicio de gestión de roles (RF-02, RF-03, RF-04) - CONSOLIDADO"""
     
     model_class = Rol
     
     @classmethod
+    def listar_roles_con_stats(cls, db: Session, skip: int = 0, limit: int = 50):
+        """Listar roles con estadísticas de usuarios y permisos"""
+        try:
+            # Consulta roles activos
+            roles = db.query(Rol).filter(Rol.is_active == True).offset(skip).limit(limit).all()
+            
+            # Formatear respuesta
+            resultado = []
+            for rol in roles:
+                # Contar usuarios asignados a este rol
+                usuarios_count = db.query(func.count(usuario_roles_table.c.id_usuario)).filter(
+                    usuario_roles_table.c.id_rol == rol.id_rol
+                ).scalar() or 0
+                
+                # Contar permisos asociados
+                permisos_count = len(rol.permisos) if hasattr(rol, 'permisos') and rol.permisos else 0
+                
+                resultado.append({
+                    "id": rol.id_rol,
+                    "nombre": rol.nombre,
+                    "descripcion": rol.descripcion or "Sin descripción",
+                    "usuariosCount": int(usuarios_count),
+                    "permisosCount": permisos_count,
+                    "fechaCreacion": rol.fecha_creacion.isoformat() if hasattr(rol, 'fecha_creacion') and rol.fecha_creacion else datetime.now().isoformat()
+                })
+            
+            logger.info(f"Roles listados: {len(resultado)} roles encontrados")
+            return resultado
+            
+        except Exception as e:
+            logger.error(f"Error al listar roles con stats: {str(e)}")
+            raise DatabaseException(f"Error al listar roles: {str(e)}")
+    
+    @classmethod
     def crear_rol(cls, db: Session, rol_dto: RolCreateDTO, current_user: Usuario = None) -> RolResponseDTO:
-        """✅ CORREGIDO: Crear nuevo rol con validación de permisos"""
+        """Crear nuevo rol con validación de permisos"""
         if current_user:
             from app.shared.permissions import check_permission
             if not check_permission(current_user, 'crear_rol'):
@@ -338,7 +373,6 @@ class RolService:
                     detail="No tiene permisos para crear roles"
                 )
         
-        # ✅ Verificar duplicado ANTES del try
         rol_existente = db.query(Rol).filter(Rol.nombre == rol_dto.nombre).first()
         if rol_existente:
             logger.warning(f"Intento de crear rol duplicado: {rol_dto.nombre}")
@@ -362,15 +396,37 @@ class RolService:
             raise DatabaseException(f"Error al crear rol: {str(e)}")
     
     @classmethod
-    def obtener_rol(cls, db: Session, rol_id: int) -> RolResponseDTO:
-        """Obtener rol por ID"""
-        rol = db.query(Rol).filter(
-            Rol.id_rol == rol_id, 
-            Rol.is_active == True
-        ).first()
-        if not rol:
-            raise NotFound("Rol", rol_id)
-        return RolResponseDTO.from_orm(rol)
+    def obtener_rol(cls, db: Session, rol_id: int) -> dict:
+        """Obtener rol por ID con estadísticas"""
+        try:
+            rol = db.query(Rol).filter(
+                Rol.id_rol == rol_id,
+                Rol.is_active == True
+            ).first()
+            
+            if not rol:
+                raise NotFound("Rol", rol_id)
+            
+            usuarios_count = db.query(func.count(usuario_roles_table.c.id_usuario)).filter(
+                usuario_roles_table.c.id_rol == rol_id
+            ).scalar() or 0
+            
+            permisos_count = len(rol.permisos) if hasattr(rol, 'permisos') and rol.permisos else 0
+            
+            return {
+                "id": rol.id_rol,
+                "nombre": rol.nombre,
+                "descripcion": rol.descripcion or "Sin descripción",
+                "usuariosCount": int(usuarios_count),
+                "permisosCount": permisos_count,
+                "fechaCreacion": rol.fecha_creacion.isoformat() if hasattr(rol, 'fecha_creacion') and rol.fecha_creacion else datetime.now().isoformat()
+            }
+            
+        except NotFound:
+            raise
+        except Exception as e:
+            logger.error(f"Error al obtener rol: {str(e)}")
+            raise DatabaseException(f"Error al obtener rol: {str(e)}")
     
     @classmethod
     def listar_roles(cls, db: Session, skip: int = 0, limit: int = 50):
@@ -380,7 +436,7 @@ class RolService:
     
     @classmethod
     def actualizar_rol(cls, db: Session, rol_id: int, rol_dto: RolUpdateDTO, current_user: Usuario = None) -> RolResponseDTO:
-        """✅ CORREGIDO: Actualizar rol"""
+        """Actualizar rol"""
         if current_user:
             from app.shared.permissions import check_permission
             if not check_permission(current_user, 'editar_rol'):
@@ -416,7 +472,7 @@ class RolService:
     
     @classmethod
     def eliminar_rol(cls, db: Session, rol_id: int, current_user: Usuario = None) -> dict:
-        """✅ CORREGIDO: Eliminar rol (borrado lógico)"""
+        """Eliminar rol (borrado lógico)"""
         if current_user:
             from app.shared.permissions import check_permission
             if not check_permission(current_user, 'eliminar_rol'):
@@ -453,7 +509,7 @@ class RolService:
         permisos_ids: List[int], 
         current_user: Usuario = None
     ) -> RolResponseDTO:
-        """✅ CORREGIDO: Asignar permisos a rol (RF-04)"""
+        """Asignar permisos a rol (RF-04)"""
         if current_user:
             from app.shared.permissions import check_permission
             if not check_permission(current_user, 'asignar_permisos'):
@@ -506,7 +562,7 @@ class RolService:
         id_rol: int, 
         current_user: Usuario = None
     ) -> dict:
-        """✅ CORREGIDO: Asignar rol a usuario"""
+        """Asignar rol a usuario"""
         if current_user:
             from app.shared.permissions import check_permission
             if not check_permission(current_user, 'asignar_permisos'):
@@ -530,7 +586,7 @@ class RolService:
         rol_id: int,
         current_user: Usuario = None
     ) -> dict:
-        """✅ CORREGIDO: Remover rol de un usuario"""
+        """Remover rol de un usuario"""
         if current_user:
             from app.shared.permissions import check_permission
             if not check_permission(current_user, 'asignar_permisos'):

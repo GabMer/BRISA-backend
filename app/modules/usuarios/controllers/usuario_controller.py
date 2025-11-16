@@ -22,6 +22,185 @@ from app.modules.usuarios.services.usuario_service import (
 
 router = APIRouter()
 
+
+# ==================== ENDPOINTS DE ROLES ====================
+
+@router.post("/roles")
+@requires_permission("crear_rol")
+async def crear_rol(
+    rol_create: RolCreateDTO,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user_dependency)
+) -> dict:
+    """
+    Crear nuevo rol (RF-03)
+    ⚠️ SEGURIDAD: Requiere permiso 'crear_rol'
+    """
+    try:
+        nuevo_rol = RolService.crear_rol(
+            db, 
+            rol_create, 
+            user_id=current_user.id_usuario
+        )
+        
+        return ResponseModel.success(
+            message="Rol creado exitosamente",
+            data=nuevo_rol.dict() if hasattr(nuevo_rol, 'dict') else nuevo_rol,
+            status_code=status.HTTP_201_CREATED
+        )
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al crear rol: {str(e)}"
+        )
+
+@router.get("/roles")
+async def listar_roles(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+    current_user: Usuario = Depends(get_current_user_dependency),
+    db: Session = Depends(get_db)
+) -> dict:
+    """Listar todos los roles con estadísticas"""
+    try:
+        roles = RolService.listar_roles_con_stats(db, skip, limit)
+        
+        return ResponseModel.success(
+            message="Roles obtenidos",
+            data=roles,
+            status_code=status.HTTP_200_OK
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al listar roles: {str(e)}"
+        )
+
+@router.get("/roles/{id_rol}")
+async def obtener_rol(
+    id_rol: int,
+    current_user: Usuario = Depends(get_current_user_dependency),
+    db: Session = Depends(get_db)
+) -> dict:
+    """Obtener detalles de rol específico"""
+    try:
+        rol = RolService.obtener_rol(db, id_rol)
+        
+        return ResponseModel.success(
+            message="Rol obtenido",
+            data=rol.dict() if hasattr(rol, 'dict') else rol,
+            status_code=status.HTTP_200_OK
+        )
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Error al obtener rol: {str(e)}"
+        )
+
+@router.post("/{id_usuario}/roles/{id_rol}")
+@requires_permission("asignar_permisos")
+async def asignar_rol_usuario(
+    id_usuario: int,
+    id_rol: int,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user_dependency)
+) -> dict:
+    """
+    Asignar rol a usuario (RF-02)
+    ⚠️ SEGURIDAD: Requiere permiso 'asignar_permisos'
+    """
+    try:
+        resultado = UsuarioService.asignar_rol(
+            db, 
+            id_usuario, 
+            id_rol, 
+            user_id=current_user.id_usuario
+        )
+        
+        return ResponseModel.success(
+            message="Rol asignado exitosamente",
+            data=resultado,
+            status_code=status.HTTP_200_OK
+        )
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al asignar rol: {str(e)}"
+        )
+
+@router.delete("/{id_usuario}/roles/{id_rol}")
+@requires_permission("asignar_permisos")
+async def revocar_rol_usuario(
+    id_usuario: int,
+    id_rol: int,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user_dependency)
+) -> dict:
+    """
+    Revocar rol de usuario (RF-02)
+    ⚠️ SEGURIDAD: Requiere permiso 'asignar_permisos'
+    """
+    try:
+        resultado = UsuarioService.revocar_rol(
+            db,
+            id_usuario,
+            id_rol,
+            user_id=current_user.id_usuario
+        )
+        
+        return ResponseModel.success(
+            message="Rol revocado exitosamente",
+            data=resultado,
+            status_code=status.HTTP_200_OK
+        )
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al revocar rol: {str(e)}"
+        )
+
+@router.post("/roles/{id_rol}/permisos")
+@requires_permission("asignar_permisos")
+async def asignar_permisos_rol(
+    id_rol: int,
+    permisos_ids: list[int],
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user_dependency)
+) -> dict:
+    """
+    Asignar permisos a rol (RF-04)
+    ⚠️ SEGURIDAD: Requiere permiso 'asignar_permisos'
+    """
+    try:
+        rol_actualizado = RolService.asignar_permisos_rol(
+            db, 
+            id_rol, 
+            permisos_ids, 
+            user_id=current_user.id_usuario
+        )
+        
+        return ResponseModel.success(
+            message="Permisos asignados al rol",
+            data=rol_actualizado.dict() if hasattr(rol_actualizado, 'dict') else rol_actualizado,
+            status_code=status.HTTP_200_OK
+        )
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al asignar permisos: {str(e)}"
+        )
+    
+
 # ==================== ENDPOINTS DE USUARIOS ====================
 
 @router.post("", status_code=status.HTTP_201_CREATED)
@@ -185,183 +364,7 @@ async def eliminar_usuario(
         )
 
 
-# ==================== ENDPOINTS DE ROLES ====================
 
-@router.post("/roles")
-@requires_permission("crear_rol")
-async def crear_rol(
-    rol_create: RolCreateDTO,
-    db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user_dependency)
-) -> dict:
-    """
-    Crear nuevo rol (RF-03)
-    ⚠️ SEGURIDAD: Requiere permiso 'crear_rol'
-    """
-    try:
-        nuevo_rol = RolService.crear_rol(
-            db, 
-            rol_create, 
-            user_id=current_user.id_usuario
-        )
-        
-        return ResponseModel.success(
-            message="Rol creado exitosamente",
-            data=nuevo_rol.dict() if hasattr(nuevo_rol, 'dict') else nuevo_rol,
-            status_code=status.HTTP_201_CREATED
-        )
-    except HTTPException as e:
-        raise e
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error al crear rol: {str(e)}"
-        )
-
-@router.get("/roles")
-async def listar_roles(
-    skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=100),
-    current_user: Usuario = Depends(get_current_user_dependency),
-    db: Session = Depends(get_db)
-) -> dict:
-    """Listar todos los roles"""
-    try:
-        roles = RolService.listar_roles(db, skip, limit)
-        
-        return ResponseModel.success(
-            message="Roles obtenidos",
-            data=[r.dict() if hasattr(r, 'dict') else r for r in roles],
-            status_code=status.HTTP_200_OK
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error al listar roles: {str(e)}"
-        )
-
-@router.get("/roles/{id_rol}")
-async def obtener_rol(
-    id_rol: int,
-    current_user: Usuario = Depends(get_current_user_dependency),
-    db: Session = Depends(get_db)
-) -> dict:
-    """Obtener detalles de rol específico"""
-    try:
-        rol = RolService.obtener_rol(db, id_rol)
-        
-        return ResponseModel.success(
-            message="Rol obtenido",
-            data=rol.dict() if hasattr(rol, 'dict') else rol,
-            status_code=status.HTTP_200_OK
-        )
-    except HTTPException as e:
-        raise e
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Error al obtener rol: {str(e)}"
-        )
-
-@router.post("/{id_usuario}/roles/{id_rol}")
-@requires_permission("asignar_permisos")
-async def asignar_rol_usuario(
-    id_usuario: int,
-    id_rol: int,
-    db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user_dependency)
-) -> dict:
-    """
-    Asignar rol a usuario (RF-02)
-    ⚠️ SEGURIDAD: Requiere permiso 'asignar_permisos'
-    """
-    try:
-        resultado = UsuarioService.asignar_rol(
-            db, 
-            id_usuario, 
-            id_rol, 
-            user_id=current_user.id_usuario
-        )
-        
-        return ResponseModel.success(
-            message="Rol asignado exitosamente",
-            data=resultado,
-            status_code=status.HTTP_200_OK
-        )
-    except HTTPException as e:
-        raise e
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error al asignar rol: {str(e)}"
-        )
-
-@router.delete("/{id_usuario}/roles/{id_rol}")
-@requires_permission("asignar_permisos")
-async def revocar_rol_usuario(
-    id_usuario: int,
-    id_rol: int,
-    db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user_dependency)
-) -> dict:
-    """
-    Revocar rol de usuario (RF-02)
-    ⚠️ SEGURIDAD: Requiere permiso 'asignar_permisos'
-    """
-    try:
-        resultado = UsuarioService.revocar_rol(
-            db,
-            id_usuario,
-            id_rol,
-            user_id=current_user.id_usuario
-        )
-        
-        return ResponseModel.success(
-            message="Rol revocado exitosamente",
-            data=resultado,
-            status_code=status.HTTP_200_OK
-        )
-    except HTTPException as e:
-        raise e
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error al revocar rol: {str(e)}"
-        )
-
-@router.post("/roles/{id_rol}/permisos")
-@requires_permission("asignar_permisos")
-async def asignar_permisos_rol(
-    id_rol: int,
-    permisos_ids: list[int],
-    db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user_dependency)
-) -> dict:
-    """
-    Asignar permisos a rol (RF-04)
-    ⚠️ SEGURIDAD: Requiere permiso 'asignar_permisos'
-    """
-    try:
-        rol_actualizado = RolService.asignar_permisos_rol(
-            db, 
-            id_rol, 
-            permisos_ids, 
-            user_id=current_user.id_usuario
-        )
-        
-        return ResponseModel.success(
-            message="Permisos asignados al rol",
-            data=rol_actualizado.dict() if hasattr(rol_actualizado, 'dict') else rol_actualizado,
-            status_code=status.HTTP_200_OK
-        )
-    except HTTPException as e:
-        raise e
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error al asignar permisos: {str(e)}"
-        )
-    
 
 # ==================== ENDPOINTS DE PERMISOS ====================
 

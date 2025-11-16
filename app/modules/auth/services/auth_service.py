@@ -173,8 +173,9 @@ class AuthService:
         if not usuario:
             raise Unauthorized(MENSAJE_ERROR_GENERICO)
         
+        #MODIFICAR DESPUESSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
         # Contraseña incorrecta -> mismo mensaje genérico
-        if not AuthService.verify_password(login_dto.password, usuario.password):
+        if login_dto.password != usuario.password:
             raise Unauthorized(MENSAJE_ERROR_GENERICO)
         
         if usuario.is_active is False:

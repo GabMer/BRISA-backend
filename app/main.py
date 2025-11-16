@@ -50,6 +50,12 @@ app.include_router(usuario_controller.router, prefix="/api/usuarios", tags=["Usu
 app.include_router(bitacora_controller.router, prefix="/api/bitacora", tags=["Bitácora"])
 #app.include_router(reportes_controller.router, prefix="/api/reportes", tags=["Reportes"])
 
+#pruebita
+@app.get("/api/saludo")
+def saludo():
+    return {"mensaje": "Hola desde FastAPI"}
+
+
 @app.get("/")
 def read_root():
     """Endpoint raíz de bienvenida"""
